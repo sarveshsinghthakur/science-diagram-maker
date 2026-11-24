@@ -6,21 +6,31 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate": "tsx scripts/generate-all.ts",
+    "test:validator": "tsx scripts/test-validator.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^18.0.10",
+    "jsdom": "^31.0.1",
+    "lucide-react": "^1.79.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "tailwind-merge": "^3.7.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
