@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>Science Diagram Maker</title>
+  <rect width="32" height="32" rx="7" fill="#2563eb" />
+  <path
+    d="M13 6h6v2h-1v6.2l4.6 8.1A2 2 0 0 1 20.9 25h-9.8a2 2 0 0 1-1.7-2.7L14 14.2V8h-1z"
+    fill="#ffffff"
+  />
+  <path d="M11.4 20h9.2l2.2 3.9H9.2z" fill="#93c5fd" />
+  <circle cx="14.6" cy="22.4" r="1.1" fill="#2563eb">
+    <animate attributeName="cy" values="23;16.5;23" dur="2.4s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;1;0" dur="2.4s" repeatCount="indefinite" />
+  </circle>
+  <circle cx="17.6" cy="22.4" r="0.8" fill="#2563eb">
+    <animate attributeName="cy" values="23.4;17.5;23.4" dur="3.1s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;1;0" dur="3.1s" repeatCount="indefinite" />
+  </circle>
+</svg>
