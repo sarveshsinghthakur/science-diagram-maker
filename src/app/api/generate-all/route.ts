@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
-import { generateAllDiagrams } from '@/lib/generator';
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
+    // Lazy import for the same reason as /api/generate-one: a broken
+    // dependency must produce a readable error, not an empty 500.
+    const { generateAllDiagrams } = await import('@/lib/generator');
     const results = await generateAllDiagrams();
     return NextResponse.json(results);
-  } catch (error: any) {
-    console.error('Error generating all diagrams:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unexpected error while generating the diagrams.';
+    console.error(`[generate-all] ${message}`);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

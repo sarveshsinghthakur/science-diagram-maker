@@ -3,8 +3,8 @@
 A small web app that asks a free **Gemini** model to draw **5 animated SVG science diagrams** for
 UK GCSE students, checks every diagram **in code**, and lets a human reviewer approve or reject it.
 
-- **Live app:** _add the Vercel URL after deploying_
-- **Repository:** _add the GitHub URL after pushing_
+- **Live app:** https://science-diagram-maker-sars-projects-d2931c00.vercel.app
+- **Repository:** https://github.com/sarveshsinghthakur/science-diagram-maker (public)
 
 ---
 
