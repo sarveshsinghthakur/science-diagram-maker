@@ -73,19 +73,26 @@ all 5 diagrams is present the moment the site opens, with no API call and no API
 
 ### 3.1 The validation checks (`src/lib/validator.ts`)
 
-Every SVG returned by the model is parsed with `jsdom` and put through five checks. Each check
-returns a boolean, and the UI shows one green/red tick per check.
+Every SVG returned by the model is parsed with `@xmldom/xmldom` and put through five checks. Each
+check returns a boolean, and the UI shows one green/red tick per check.
 
 | # | Check name | What it actually does |
 | :-- | :--- | :--- |
-| 1 | `isParsable` | Parses the string as `image/svg+xml`. jsdom reports XML syntax errors as a `<parsererror>` element, so that element is treated as a parse failure. A missing `<svg>` root also fails. |
+| 1 | `isParsable` | Parses the string as XML. A malformed document makes the parser throw, which is caught and reported as a parse failure. A missing `<svg>` root also fails. |
 | 2 | `withinViewBox` | Reads the `viewBox`, then computes an approximate bounding box for every `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path` and `text`. Path data is tokenised so `M/L/H/V/C/S/Q/T/A` commands are followed properly, and `translate` / `scale` transforms on the element **and its ancestors** are accumulated. If any box escapes the viewBox (with a 0.5-unit tolerance) the check fails. |
 | 3 | `hasTitleAndLabels` | Requires a non-empty `<title>` **and** at least three `<text>` elements. |
 | 4 | `hasAnimation` | Looks for SMIL (`<animate>`, `<animateTransform>`, `<animateMotion>`, `<set>`), a `<style>` block containing `@keyframes` / `animation:`, or an `animate`-ish CSS class. |
 | 5 | `noScripts` **(my custom check)** | Security check. Fails if the SVG contains a `<script>` element, a `<foreignObject>`, any inline `on*` event handler (`onclick`, `onload`, …) or any `javascript:` URL. This is also what makes it safe to render the model output with `dangerouslySetInnerHTML` in the dashboard. |
 
-`npm run test:validator` runs seven cases (one valid SVG and one for each failure mode) and prints
+`npm run test:validator` runs twelve cases (one valid SVG and one for each failure mode) and prints
 a pass/fail line per case.
+
+> **Why `@xmldom/xmldom` and not `jsdom`?** `jsdom` pulls in `html-encoding-sniffer`, which
+> `require()`s `@exodus/bytes` — a package that is ESM-only in every published version. That only
+> works on Node ≥ 22.12 (where `require(esm)` is enabled) and breaks as soon as the bundler
+> externalises the dependency, which is exactly what happens inside a Vercel serverless function.
+> The app therefore ships with a parser that has **zero dependencies and is pure CommonJS**, so the
+> validator behaves identically on a laptop and in production.
 
 ### 3.2 Retry and error handling (`src/lib/gemini.ts`)
 
@@ -169,7 +176,8 @@ The table below is generated from `results.json` after running `npm run generate
 | Problem | Symptom | Fix |
 | :--- | :--- | :--- |
 | Gemini wraps the SVG in markdown | The validator saw ` ```svg ` and reported "not valid XML". | `cleanSvg()` in `src/lib/gemini.ts` strips a surrounding code fence and cuts anything before `<svg` / after `</svg>`. |
-| Malformed XML is not thrown by `jsdom` | `new JSDOM(brokenXml, { contentType: 'image/svg+xml' })` resolves happily with a `<parsererror>` element, so the parse check silently passed. | The validator explicitly looks for `parsererror` and fails check 1 with the parser message. Caught by the `malformed XML` case in `npm run test:validator`. |
+| Malformed XML was not thrown by `jsdom` | `new JSDOM(brokenXml, { contentType: 'image/svg+xml' })` resolves happily with a `<parsererror>` element, so the parse check silently passed. | The validator explicitly looks for `parsererror` and fails check 1 with the parser message. Caught by the `malformed XML` case in `npm run test:validator`. |
+| `jsdom` could not be loaded inside the Vercel function | Every API route answered with an **empty 500**. The bundler externalised `html-encoding-sniffer`, which `require()`s the ESM-only `@exodus/bytes`, and the serverless runtime rejected it with `ERR_REQUIRE_ESM`. The page itself still rendered, because it is statically prerendered. | Replaced `jsdom` with `@xmldom/xmldom` (pure CommonJS, zero dependencies) behind a small `src/lib/svg-dom.ts` adapter. The API routes also import the generation modules lazily and return a JSON `{ error }` body, and `GET /api/health` reports the runtime version, whether each dependency loads, and whether the API key is configured. |
 | The first "within viewBox" implementation was a stub | It only checked that a `viewBox` attribute existed, so it could never fail. | Replaced with a real geometric bounds check: per-element bounding boxes, path-data tokenising, and accumulated ancestor transforms. The `element outside viewBox` test now genuinely fails the check. |
 | `localStorage` read during render | Reading it in the component body caused hydration mismatches. | The read moved into `useEffect`, behind a `hydrated` flag, so the server and first client render match. |
 | The page initially fetched `/api/results` | The table was empty until the fetch resolved, which broke "the 5 saved results must already show". | `results.json` is now statically imported by the Server Component and prerendered into the HTML. The `/api/results` route was removed. |
@@ -200,7 +208,7 @@ The table below is generated from `results.json` after running `npm run generate
 
 | Tool | What I used it for |
 | :--- | :--- |
-| **Claude (Anthropic)** | Scaffolding the Next.js 16 project structure, writing the `jsdom`-based SVG validator and the geometric bounds check, and reviewing the retry logic for edge cases. |
+| **Claude (Anthropic)** | Scaffolding the Next.js 16 project structure, writing the original `jsdom`-based SVG validator and the geometric bounds check, and reviewing the retry logic for edge cases. |
 | **OpenAI Codex / ChatGPT** | Generating the Tailwind dashboard markup, the Gemini SDK calls (`generateContent`, `usageMetadata`), and debugging the `next typegen` / `LayoutProps` build error. |
 | **GitHub Copilot** | Inline autocomplete for React components and TypeScript types while iterating on the dashboard. |
 | **Gemini (the app itself)** | The AI that actually draws the five diagrams at runtime — that is the product, not the tooling. |

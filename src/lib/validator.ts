@@ -1,5 +1,6 @@
-import { JSDOM } from 'jsdom';
 import { ValidationResult } from './constants';
+import { parseSvgDocument, queryAll, queryOne, tagNameOf } from './svg-dom';
+import type { Document, Element } from './svg-dom';
 
 /**
  * The 4 mandatory checks + 1 custom security check.
@@ -9,6 +10,11 @@ import { ValidationResult } from './constants';
  * 3. hasTitleAndLabels  - has a <title> and at least 3 <text> labels.
  * 4. hasAnimation       - has SMIL animation or a CSS @keyframes/animation rule.
  * 5. noScripts (custom) - no <script> elements, no on* event handlers, no javascript: URLs.
+ *
+ * The DOM comes from `@xmldom/xmldom`, a pure CommonJS XML parser with no
+ * dependencies. It was chosen over `jsdom` because `jsdom` pulls in an
+ * ESM-only transitive dependency (`@exodus/bytes`) that cannot be loaded by
+ * the CommonJS `require()` used inside a Vercel serverless function.
  */
 
 interface Box {
@@ -139,7 +145,7 @@ function pathPoints(d: string): Array<{ x: number; y: number }> {
 
 /** Computes an approximate bounding box for a drawable SVG element. */
 function elementBox(element: Element): Box | null {
-  const tag = element.tagName.toLowerCase();
+  const tag = tagNameOf(element);
   const get = (name: string): number => parseNumber(element.getAttribute(name));
 
   switch (tag) {
@@ -288,11 +294,12 @@ function checkWithinViewBox(svg: Element): boolean {
   const maxX = minX + width;
   const maxY = minY + height;
 
-  const drawables = svg.querySelectorAll(
+  const drawables = queryAll(
+    svg,
     'rect, circle, ellipse, line, polyline, polygon, path, text, image, use'
   );
 
-  for (const element of Array.from(drawables)) {
+  for (const element of drawables) {
     const box = elementBox(element);
     if (!box) continue;
 
@@ -321,12 +328,12 @@ function checkWithinViewBox(svg: Element): boolean {
  * Check 5 (custom): the SVG must not contain executable content.
  */
 function checkNoScripts(doc: Document): boolean {
-  if (doc.querySelectorAll('script').length > 0) return false;
+  if (queryAll(doc, 'script').length > 0) return false;
 
-  if (doc.querySelectorAll('foreignObject').length > 0) return false;
+  if (queryAll(doc, 'foreignObject').length > 0) return false;
 
-  const allElements = doc.querySelectorAll('*');
-  for (const element of Array.from(allElements)) {
+  const allElements = queryAll(doc, '*');
+  for (const element of allElements) {
     for (const attribute of Array.from(element.attributes)) {
       const name = attribute.name.toLowerCase();
       const value = attribute.value.toLowerCase().trim();
@@ -362,8 +369,9 @@ export function validateSVG(svgString: string): ValidationResult {
 
   let doc: Document;
   try {
-    const dom = new JSDOM(svgString, { contentType: 'image/svg+xml' });
-    doc = dom.window.document;
+    // A malformed diagram makes the parser throw, which is caught here and
+    // reported as a failed `isParsable` check.
+    doc = parseSvgDocument(svgString);
   } catch (error) {
     return {
       valid: false,
@@ -372,17 +380,7 @@ export function validateSVG(svgString: string): ValidationResult {
     };
   }
 
-  // jsdom reports XML syntax errors as a <parsererror> element rather than throwing.
-  const parserError = doc.querySelector('parsererror');
-  if (parserError) {
-    return {
-      valid: false,
-      checks,
-      error: `The SVG is not valid XML: ${(parserError.textContent ?? '').slice(0, 300)}`,
-    };
-  }
-
-  const svg = doc.querySelector('svg');
+  const svg = queryOne(doc, 'svg');
   if (!svg) {
     return { valid: false, checks, error: 'No <svg> root element was found.' };
   }
@@ -393,17 +391,17 @@ export function validateSVG(svgString: string): ValidationResult {
   checks.withinViewBox = checkWithinViewBox(svg);
 
   // Check 3 - a <title> plus at least 3 <text> labels.
-  const title = svg.querySelector('title');
-  const labels = svg.querySelectorAll('text');
+  const title = queryOne(svg, 'title');
+  const labels = queryAll(svg, 'text');
   checks.hasTitleAndLabels = Boolean(title && title.textContent?.trim()) && labels.length >= 3;
 
   // Check 4 - at least one animation (SMIL or CSS).
-  const smilAnimations = svg.querySelectorAll('animate, animateTransform, animateMotion, set');
-  const styleElements = Array.from(svg.querySelectorAll('style'));
+  const smilAnimations = queryAll(svg, 'animate, animateTransform, animateMotion, set');
+  const styleElements = queryAll(svg, 'style');
   const hasCssAnimation = styleElements.some(
     (style) => /@keyframes|animation\s*[:=]/i.test(style.textContent ?? '')
   );
-  const hasAnimatedAttribute = Array.from(svg.querySelectorAll('*')).some((element) =>
+  const hasAnimatedAttribute = queryAll(svg, '*').some((element) =>
     Array.from(element.attributes).some(
       (attribute) =>
         attribute.name === 'class' &&

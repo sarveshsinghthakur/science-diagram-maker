@@ -4,11 +4,13 @@ import { NextResponse } from 'next/server';
  * Health check.
  *
  * Reports whether the app can load the two server-side dependencies it needs
- * (the Gemini SDK and the jsdom based SVG validator) and whether the API key
- * is configured. It never returns the key itself.
+ * (the Gemini SDK and the XML based SVG validator) and whether the API key is
+ * configured. It never returns the key itself.
  */
 export async function GET() {
   const checks: Record<string, string> = {};
+
+  checks.runtime = `node ${process.version}`;
 
   try {
     await import('@google/generative-ai');
@@ -18,11 +20,11 @@ export async function GET() {
   }
 
   try {
-    const { JSDOM } = await import('jsdom');
-    new JSDOM('<svg xmlns="http://www.w3.org/2000/svg"></svg>', { contentType: 'image/svg+xml' });
-    checks.jsdom = 'ok';
+    const { parseSvgDocument, queryAll } = await import('@/lib/svg-dom');
+    const doc = parseSvgDocument('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    checks.xmlParser = queryAll(doc, 'svg').length === 1 ? 'ok' : 'FAILED: parser returned no <svg>';
   } catch (error) {
-    checks.jsdom = `FAILED: ${error instanceof Error ? error.message : String(error)}`;
+    checks.xmlParser = `FAILED: ${error instanceof Error ? error.message : String(error)}`;
   }
 
   try {
@@ -37,7 +39,10 @@ export async function GET() {
 
   checks.apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY ? 'configured' : 'missing';
 
-  const healthy = Object.values(checks).every((value) => value === 'ok' || value.includes('configured') || value.startsWith('ok ('));
+  const dependencyChecks = [checks.geminiSdk, checks.xmlParser, checks.validator];
+  const healthy =
+    dependencyChecks.every((value) => value === 'ok' || value.startsWith('ok (')) &&
+    checks.apiKey !== 'missing';
 
   return NextResponse.json({ healthy, checks }, { status: healthy ? 200 : 500 });
 }

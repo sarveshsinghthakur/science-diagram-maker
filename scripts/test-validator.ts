@@ -65,14 +65,57 @@ const BROKEN_XML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100
   <circle cx="50" cy="50" r="30" />
 </svg>`;
 
+const WITH_EVENT_HANDLER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Inline handler</title>
+  <circle cx="50" cy="50" r="30" onclick="alert('xss')" />
+  <text x="10" y="30">A</text>
+  <text x="10" y="50">B</text>
+  <text x="10" y="70">C</text>
+  <animate attributeName="x" values="0;10" dur="2s" />
+</svg>`;
+
+const WITH_JAVASCRIPT_URL = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>javascript: URL</title>
+  <a href="javascript:alert('xss')"><circle cx="50" cy="50" r="30" /></a>
+  <text x="10" y="30">A</text>
+  <text x="10" y="50">B</text>
+  <text x="10" y="70">C</text>
+  <animate attributeName="x" values="0;10" dur="2s" />
+</svg>`;
+
+const WITH_FOREIGN_OBJECT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>foreignObject</title>
+  <foreignObject width="50" height="50"><div xmlns="http://www.w3.org/1999/xhtml">html</div></foreignObject>
+  <text x="10" y="30">A</text>
+  <text x="10" y="50">B</text>
+  <text x="10" y="70">C</text>
+  <animate attributeName="x" values="0;10" dur="2s" />
+</svg>`;
+
+const CSS_ANIMATION = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>CSS animation</title>
+  <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } .spin { animation: spin 2s linear infinite; }</style>
+  <circle class="spin" cx="50" cy="50" r="30" />
+  <text x="10" y="30">A</text>
+  <text x="10" y="50">B</text>
+  <text x="10" y="70">C</text>
+</svg>`;
+
+const NOT_AN_SVG = `<div><p>This is not an SVG at all.</p></div>`;
+
 const CASES: Array<{ name: string; svg: string; expected: boolean; expectedCheck?: string }> = [
   { name: 'valid animated SVG', svg: VALID_SVG, expected: true },
   { name: 'missing viewBox', svg: MISSING_VIEWBOX, expected: false, expectedCheck: 'withinViewBox' },
   { name: 'element outside viewBox', svg: OUTSIDE_VIEWBOX, expected: false, expectedCheck: 'withinViewBox' },
   { name: 'fewer than 3 labels', svg: TOO_FEW_LABELS, expected: false, expectedCheck: 'hasTitleAndLabels' },
   { name: 'no animation', svg: NO_ANIMATION, expected: false, expectedCheck: 'hasAnimation' },
+  { name: 'CSS animation instead of SMIL', svg: CSS_ANIMATION, expected: true },
   { name: 'contains a script', svg: WITH_SCRIPT, expected: false, expectedCheck: 'noScripts' },
+  { name: 'inline on* event handler', svg: WITH_EVENT_HANDLER, expected: false, expectedCheck: 'noScripts' },
+  { name: 'javascript: URL', svg: WITH_JAVASCRIPT_URL, expected: false, expectedCheck: 'noScripts' },
+  { name: 'contains a foreignObject', svg: WITH_FOREIGN_OBJECT, expected: false, expectedCheck: 'noScripts' },
   { name: 'malformed XML', svg: BROKEN_XML, expected: false, expectedCheck: 'isParsable' },
+  { name: 'not an SVG document', svg: NOT_AN_SVG, expected: false, expectedCheck: 'isParsable' },
 ];
 
 let failures = 0;
